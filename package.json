@@ -7,6 +7,7 @@
   "description": "Restrict the dsh model picker to the DeepSeek models an external patrol last confirmed usable, while always keeping paid/official providers and the current selection visible.",
   "files": [
     "index.js",
+    "test.js",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
@@ -33,5 +34,8 @@
   },
   "bugs": {
     "url": "https://github.com/poweriverHN/dsh-deepseek-picker-filter/issues"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }
