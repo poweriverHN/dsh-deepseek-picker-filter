@@ -1,0 +1,37 @@
+{
+  "name": "dsh-deepseek-picker-filter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "description": "Restrict the dsh model picker to the DeepSeek models an external patrol last confirmed usable, while always keeping paid/official providers and the current selection visible.",
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "model-picker",
+    "deepseek",
+    "allowlist"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "author": "poweriverHN <poweriver@163.com>",
+  "homepage": "https://github.com/poweriverHN/dsh-deepseek-picker-filter#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/poweriverHN/dsh-deepseek-picker-filter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/poweriverHN/dsh-deepseek-picker-filter/issues"
+  }
+}
