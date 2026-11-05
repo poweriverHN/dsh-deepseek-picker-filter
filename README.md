@@ -40,6 +40,7 @@ plugin_manager  action=install_bundle  target=link:/path/to/dsh-deepseek-picker-
   "at": 1793846236768,
   "staleAfterMinutes": 180,
   "keepProviders": ["deepseek-official", "deepseek-account", "codearts"],
+  "rotateExclude": ["deepseek-official", "deepseek-account", "codearts"],
   "models": [
     { "provider": "trae", "model": "DeepSeek-V4-Pro" },
     { "provider": "codearts", "model": "deepseek-v4.1-flash" },
@@ -53,6 +54,7 @@ plugin_manager  action=install_bundle  target=link:/path/to/dsh-deepseek-picker-
 | `at` | 巡检完成时间戳（毫秒）。超过 `staleAfterMinutes` 后白名单整体失效，插件放行全部模型 |
 | `staleAfterMinutes` | 过期阈值，缺省 180 |
 | `keepProviders` | 永远保留的渠道 id；缺省 `["deepseek-official","deepseek-account","codearts"]` |
+| `rotateExclude` | 本插件不读这个字段，由配套的轮换插件使用 |
 | `models[].provider` | 渠道 id；**省略表示「任何提供这个模型 id 的渠道都算」** |
 | `models[].model` | 模型 id |
 
