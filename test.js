@@ -51,7 +51,7 @@ test('只保留白名单里的模型和 keepProviders', async () => {
   assert.deepStrictEqual(out.routableProviders, ['trae', 'deepseek-official'])
 })
 
-test('白名单过期时放行全部', async () => {
+test('白名单过期时沿用上次清单，不再放行全目录', async () => {
   writeWhitelist({
     at: Date.now() - 999 * 60_000,
     staleAfterMinutes: 180,
@@ -59,19 +59,54 @@ test('白名单过期时放行全部', async () => {
     models: [{ provider: 'trae', model: 'DeepSeek-V4-Pro' }],
   })
   const out = await harness().modelCatalog()
-  assert.strictEqual(out.groups.length, catalog.groups.length)
+  // 过期不等于「没有白名单」：继续用最后一次巡检确认的清单，只是可能有新模型还没进来。
+  assert.deepStrictEqual(out.groups.map(group => group.id), ['trae', 'deepseek-official'])
+  assert.deepStrictEqual(out.groups[0].models.map(model => model.id), ['DeepSeek-V4-Pro'])
 })
 
-test('白名单缺失时放行全部', async () => {
+test('白名单从未读到过（缺失）时放行全部', async () => {
   fs.rmSync(whitelist, { force: true })
   const out = await harness().modelCatalog()
   assert.strictEqual(out.groups.length, catalog.groups.length)
 })
 
-test('白名单坏掉时放行全部', async () => {
+test('白名单坏掉且从未成功读过时放行全部', async () => {
   fs.writeFileSync(whitelist, '{ not json')
   const out = await harness().modelCatalog()
   assert.strictEqual(out.groups.length, catalog.groups.length)
+})
+
+test('成功读过之后文件被删，仍沿用上次清单（不放行全目录）', async () => {
+  writeWhitelist({
+    at: Date.now(),
+    staleAfterMinutes: 180,
+    keepProviders: ['deepseek-official'],
+    models: [{ provider: 'trae', model: 'DeepSeek-V4-Pro' }],
+  })
+  // 同一个实例先成功读一次，再删文件
+  const controller = harness()
+  const first = await controller.modelCatalog()
+  assert.strictEqual(first.groups.length, 2)
+
+  fs.rmSync(whitelist, { force: true })
+  const second = await controller.modelCatalog()
+  assert.deepStrictEqual(second.groups.map(group => group.id), ['trae', 'deepseek-official'],
+    '巡检停了也不该把无关渠道摊出来')
+})
+
+test('成功读过之后白名单变成坏 JSON，仍沿用上次清单', async () => {
+  writeWhitelist({
+    at: Date.now(),
+    staleAfterMinutes: 180,
+    keepProviders: ['deepseek-official'],
+    models: [{ provider: 'trae', model: 'DeepSeek-V4-Pro' }],
+  })
+  const controller = harness()
+  await controller.modelCatalog()
+
+  fs.writeFileSync(whitelist, '{ not json')
+  const out = await controller.modelCatalog()
+  assert.deepStrictEqual(out.groups.map(group => group.id), ['trae', 'deepseek-official'])
 })
 
 test('当前选中的模型即使不在白名单也保留', async () => {

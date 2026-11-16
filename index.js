@@ -50,18 +50,30 @@ export function apply(ctx, config) {
   let cachedStaleMs = DEFAULT_STALE_MINUTES * 60_000
   let cachedKeep = defaultKeep
 
+  /**
+   * 兜底：有历史清单就沿用（标记 stale），没有才返回 undefined 让调用方放行。
+   *
+   * 放行等于「整个模型目录原样暴露」，会把 GLM / Kimi / Qwen 等无关模型一起摊到
+   * 选择器里；只有从未成功读到过白名单时才这么做。
+   */
+  function cachedOrUndefined() {
+    if (cachedModels === null) return undefined
+    return { models: cachedModels, keepProviders: cachedKeep, stale: true }
+  }
+
   /** 读取并缓存白名单；不可用时返回 undefined（调用方放行）。 */
   function readWhitelist() {
     let stat
     try {
       stat = fs.statSync(whitelistPath)
     } catch {
-      return undefined
+      // 文件被删/读不到：还有上一次的清单就继续用它，绝不因此放行全目录。
+      return cachedOrUndefined()
     }
     if (stat.mtimeMs !== cachedMtime || cachedModels === null) {
       try {
         const parsed = JSON.parse(fs.readFileSync(whitelistPath, 'utf8'))
-        if (parsed === null || typeof parsed !== 'object' || !Array.isArray(parsed.models)) return undefined
+        if (parsed === null || typeof parsed !== 'object' || !Array.isArray(parsed.models)) return cachedOrUndefined()
         const models = []
         for (const row of parsed.models) {
           if (!row || typeof row.model !== 'string' || row.model === '') continue
@@ -77,12 +89,16 @@ export function apply(ctx, config) {
         cachedStaleMs = (Number(parsed.staleAfterMinutes) > 0 ? Number(parsed.staleAfterMinutes) : DEFAULT_STALE_MINUTES) * 60_000
         cachedMtime = stat.mtimeMs
       } catch {
-        return undefined
+        return cachedOrUndefined()
       }
     }
-    if (!Number.isFinite(cachedAt) || cachedAt <= 0) return undefined
-    if (Date.now() - cachedAt > cachedStaleMs) return undefined
-    return { models: cachedModels, keepProviders: cachedKeep }
+    if (!Number.isFinite(cachedAt) || cachedAt <= 0) return cachedOrUndefined()
+    // 过期**不放行全目录**！早先这里是 `return undefined`（放行），结果巡检漏跑一段时间后，
+    // 选择器会把所有渠道的全部模型（GLM / Kimi / Qwen / OpenPangu…）一次性摊出来。
+    // 现在改为：继续用最后一次巡检确认的清单，只在完全读不到文件/解析失败时才放行。
+    // 代价只是「新恢复的模型要等下一轮巡检才出现」，远比列表被无关模型淹掉轻。
+    const stale = Date.now() - cachedAt > cachedStaleMs
+    return { models: cachedModels, keepProviders: cachedKeep, stale }
   }
 
   const original = controller.modelCatalog.bind(controller)

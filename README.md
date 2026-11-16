@@ -51,7 +51,7 @@ plugin_manager  action=install_bundle  target=link:/path/to/dsh-deepseek-picker-
 
 | 字段 | 含义 |
 | --- | --- |
-| `at` | 巡检完成时间戳（毫秒）。超过 `staleAfterMinutes` 后白名单整体失效，插件放行全部模型 |
+| `at` | 巡检完成时间戳（毫秒）。超过 `staleAfterMinutes` 后视为过期：**沿用最后一次清单**（见「失败安全」），不再整体放行 |
 | `staleAfterMinutes` | 过期阈值，缺省 180 |
 | `keepProviders` | 永远保留的渠道 id；缺省 `["deepseek-official","deepseek-account","codearts"]` |
 | `rotateExclude` | 本插件不读这个字段，由配套的轮换插件使用 |
@@ -79,17 +79,39 @@ plugin_manager  action=install_bundle  target=link:/path/to/dsh-deepseek-picker-
         keepProviders: ['deepseek-official', 'deepseek-account']
 ```
 
+### 白名单路径不要写进插件自带的 patch
+
+本仓库的 `cordis.patch.yml` 恒为 `config: {}`。绝对路径一旦跟着代码走，
+换台机器安装就必然读不到白名单 —— 而读不到会退化成「不过滤」（见「失败安全」）。
+
+机器相关路径放在**该机器 profile 的 `cordis.patch.yml`** 里。loader 在所有 bundle 层之后
+才应用 profile 层，且 `- id:` 是整段覆盖 `config`：
+
+```yaml
+# $DSH_HOME/profiles/<name>/cordis.patch.yml —— 只属于这台机器，不进 git
+- id: deepseek-picker-filter
+  name: 'dsh-deepseek-picker-filter'
+  config:
+    whitelistPath: /workspace/dsh使用/免费模型巡检/whitelist.json
+```
+
+代码里路径一律用 `node:path` / `os.homedir()` 拼接，没写死分隔符，
+同一份代码在 Windows 桌面版与 Linux（Docker web 版）上都可用。
+
 ## 失败安全
 
 插件刻意做到「怎么都坏不掉对话」：
 
-- 白名单文件不存在 → 不过滤，选择器显示全部
-- JSON 解析失败 → 不过滤
-- 白名单过期 → 不过滤
+- 白名单**从未成功读到过**（文件不存在 / JSON 坏掉）→ 不过滤，选择器显示全部
 - `models` 为空 → 不过滤
 - 包装函数内部抛任何异常 → 返回原始目录
 
-也就是说：**巡检脚本挂了，你只是回到「全部模型都显示」的状态，不会用不了。**
+**白名单过期（或读到过之后文件被删、被写坏）→ 继续用最后一次成功读到的清单**，不再放行全部。
+早先这里是一律放行，后果很实际：巡检漏跑一段时间后，选择器会把所有渠道的全部模型
+（GLM / Kimi / Qwen / OpenPangu…）一次性摊出来，反而看不出哪些是巡检确认可用的。
+现在过期的代价只是「新恢复的模型要等下一轮巡检才出现」，比整张列表被淹掉轻得多。
+
+也就是说：**巡检脚本挂了，选择器停在最后一次巡检的结论上，不会突然铺满无关模型，也不会用不了。**
 
 ## 实现细节
 
