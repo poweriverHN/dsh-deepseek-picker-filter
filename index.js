@@ -10,6 +10,9 @@
  * 过滤它会让正在用其它模型的会话发不出消息。这里只影响列表显示，
  * 已选模型照常可发。
  *
+ * 不参与巡检的渠道（如火山方舟 volcengine）由 `ALWAYS_KEEP_PROVIDERS` 硬编码保留，
+ * 白名单里没有它们也照样列出，并按固定顺序排在 codearts 之后。
+ *
  * 失败安全：白名单缺失、无法解析或过期时一律放行；包装抛错也放行。
  */
 import fs from 'node:fs'
@@ -18,6 +21,18 @@ import path from 'node:path'
 
 /** 付费/官方 DeepSeek 渠道：无论巡检结论如何都保留。 */
 const DEFAULT_KEEP_PROVIDERS = ['deepseek-official', 'deepseek-account', 'codearts']
+
+/**
+ * 不参与巡检、也不参与白名单筛选的渠道，始终整体列出。
+ * 火山方舟（volcengine）由用户手工加模型，巡检脚本不测它，白名单里也没有它，
+ * 因此不能靠 keepProviders 保留——白名单一写就会覆盖默认值，所以单独硬编码。
+ */
+const ALWAYS_KEEP_PROVIDERS = ['volcengine']
+
+/** 展示顺序：把某个渠道组紧挨在锚点渠道组之后。 */
+const ORDER_MOVE_PROVIDER = 'volcengine'
+const ORDER_ANCHOR_PROVIDER = 'codearts'
+
 const DEFAULT_STALE_MINUTES = 180
 
 /**
@@ -30,6 +45,19 @@ function resolveWhitelistPath(configured) {
   const fromEnv = process.env.DSH_DEEPSEEK_WHITELIST
   if (typeof fromEnv === 'string' && fromEnv !== '') return fromEnv
   return path.join(os.homedir(), '.dsh', 'deepseek-whitelist.json')
+}
+
+/**
+ * 把 `ORDER_MOVE_PROVIDER` 这一组挪到 `ORDER_ANCHOR_PROVIDER` 之后。
+ * 锚点不存在时保持原顺序；待挪组不存在时也原样返回。
+ */
+function orderGroups(groups) {
+  if (!groups.some(group => group.id === ORDER_MOVE_PROVIDER)) return groups
+  const rest = groups.filter(group => group.id !== ORDER_MOVE_PROVIDER)
+  const anchor = rest.findIndex(group => group.id === ORDER_ANCHOR_PROVIDER)
+  rest.splice(anchor === -1 ? rest.length : anchor + 1, 0,
+    groups.find(group => group.id === ORDER_MOVE_PROVIDER))
+  return rest
 }
 
 export const name = 'deepseek-picker-filter'
@@ -117,7 +145,7 @@ export function apply(ctx, config) {
           else pairs.add(`${entry.provider}/${entry.model}`)
         }
 
-        const keepProviders = new Set(whitelist.keepProviders)
+        const keepProviders = new Set([...whitelist.keepProviders, ...ALWAYS_KEEP_PROVIDERS])
         const defaultSelection = catalog?.default
         const keep = (providerId, modelId) =>
           keepProviders.has(providerId)
@@ -128,12 +156,12 @@ export function apply(ctx, config) {
             && defaultSelection.provider === providerId
             && defaultSelection.model === modelId)
 
-        const groups = Array.isArray(catalog?.groups)
+        const groups = orderGroups(Array.isArray(catalog?.groups)
           ? catalog.groups.map(group => ({
             ...group,
             models: Array.isArray(group.models) ? group.models.filter(model => keep(group.id, model.id)) : [],
           })).filter(group => group.models.length > 0)
-          : []
+          : [])
 
         return { ...catalog, groups, routableProviders: groups.map(group => group.id) }
       } catch {

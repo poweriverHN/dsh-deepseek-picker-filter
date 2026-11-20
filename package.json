@@ -1,10 +1,10 @@
 {
   "name": "dsh-deepseek-picker-filter",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "main": "index.js",
-  "description": "Restrict the dsh model picker to the DeepSeek models an external patrol last confirmed usable, while always keeping paid/official providers and the current selection visible; an expired whitelist keeps filtering with the last known list instead of exposing every model.",
+  "description": "Restrict the dsh model picker to the DeepSeek models an external patrol last confirmed usable, while always keeping paid/official providers and non-patrol channels (e.g. Volcengine Ark) visible in a fixed order after codearts, and the current selection; an expired whitelist keeps filtering with the last known list instead of exposing every model.",
   "files": [
     "index.js",
     "test.js",
